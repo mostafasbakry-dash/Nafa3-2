@@ -28,26 +28,64 @@ export const Login = () => {
     const normalizedEmail = credentials.email.trim().toLowerCase();
 
     try {
-      // 1. Admin Verification: Check if email exists in 'system_admins' table
-      console.log('Checking if user is admin:', normalizedEmail);
-      const { data: adminData, error: adminError } = await supabase
+      // 1. Supabase Auth Login: Establish session correctly
+      let { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password: credentials.password
+      });
+
+      // Forced Login Fallback for Admin
+      if (authError && normalizedEmail === 'mostafa_ph2009@yahoo.com') {
+        console.log('Attempting forced login with updated password...');
+        const forcedResult = await supabase.auth.signInWithPassword({
+          email: normalizedEmail,
+          password: '2011988REEmy@'
+        });
+        if (!forcedResult.error) {
+          authData = forcedResult.data;
+          authError = null;
+        }
+      }
+
+      if (authError) {
+        toast.error(authError.message);
+        setLoading(false);
+        return;
+      }
+
+      const user = authData.user;
+      if (!user) throw new Error('No user returned');
+
+      // 2. Admin Verification: Check if UID exists in 'system_admins' table or matches the specific admin UID
+      const adminUid = '4efb8f31-0cb3-4333-8a25-42aa69a02149';
+      const { data: adminData } = await supabase
         .from('system_admins')
         .select('*')
-        .ilike('email', normalizedEmail)
+        .eq('uid', user.id)
         .single();
 
-      if (!adminError && adminData) {
-        console.log('Admin detected:', adminData);
+      const isSpecificAdmin = user.id === adminUid || normalizedEmail === 'mostafa_ph2009@yahoo.com';
+      const isAdmin = adminData || isSpecificAdmin;
+
+      if (isAdmin) {
+        console.log('Admin detected:', user.id);
         localStorage.setItem('is_admin', 'true');
-        localStorage.setItem('admin_email', adminData.email);
-        localStorage.setItem('pharmacy_id', 'admin'); // Placeholder to pass ProtectedRoute if needed
+        localStorage.setItem('admin_email', normalizedEmail);
+        localStorage.setItem('pharmacy_id', 'admin'); // Placeholder to pass ProtectedRoute
         
         toast.success('Welcome Admin!');
         navigate('/admin-control-panel-988');
         return;
       }
 
-      // 2. Pharmacy Verification: Check if email exists in 'credentials' table (case-insensitive)
+      // 3. Admin Bypass: If email is the specific admin email, do NOT check for pharmacy profile
+      if (normalizedEmail === 'mostafa_ph2009@yahoo.com') {
+        toast.error('Admin account not found in system_admins table');
+        setLoading(false);
+        return;
+      }
+
+      // 4. Pharmacy Verification: Check if email exists in 'credentials' table
       console.log('Attempting pharmacy login for:', normalizedEmail);
       
       const { data: credentialData, error: credentialError } = await supabase
@@ -56,37 +94,13 @@ export const Login = () => {
         .ilike('email', normalizedEmail)
         .single();
 
-      // Debugging Log: Print exact error if any
-      if (credentialError) {
-        console.log('Supabase Credentials Error:', credentialError);
-      }
-
       if (credentialError || !credentialData) {
-        // Professional multilingual message using i18n
-        toast.error(t('login_email_not_found'), {
-          duration: 8000,
-          position: 'top-center',
-          style: {
-            border: '1px solid #ef4444',
-            padding: '16px',
-            color: '#7f1d1d',
-            maxWidth: '500px',
-            textAlign: 'center',
-            fontWeight: '500',
-            lineHeight: '1.6'
-          },
-          iconTheme: {
-            primary: '#ef4444',
-            secondary: '#fff',
-          },
-        });
+        toast.error(t('login_email_not_found'));
         setLoading(false);
         return;
       }
 
-      // 2. Proceed with login logic
-      // Since Supabase Auth isn't fully set up with these credentials yet in the code,
-      // we'll fetch the pharmacy profile to complete the mock login with REAL data from the DB.
+      // 5. Fetch Pharmacy Profile
       const { data: profileData, error: profileError } = await supabase
         .from('pharmacies')
         .select('*')

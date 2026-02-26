@@ -25,7 +25,9 @@ export const getSupabase = () => {
       },
       auth: {
         persistSession: true,
-        autoRefreshToken: true
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        storageKey: 'nafa3-auth-token'
       }
     });
   } catch (err) {
@@ -34,4 +36,8 @@ export const getSupabase = () => {
   }
   
   return supabaseInstance;
+};
+
+export const getRedirectUrl = () => {
+  return window.location.origin;
 };

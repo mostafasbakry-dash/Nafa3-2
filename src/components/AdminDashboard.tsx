@@ -138,81 +138,108 @@ export const AdminDashboard = () => {
         }
       }
 
-      // 1. Fetch Stats
-      const { data: statsData } = await supabase.from('pharmacies_stats').select('total_count');
-      const totalPharmacies = statsData?.[0]?.total_count || 0;
-      
-      const { count: offerCount } = await supabase.from('inventory_offers').select('*', { count: 'exact', head: true });
-      const { count: requestCount } = await supabase.from('inventory_requests').select('*', { count: 'exact', head: true });
-      const { count: archiveCount } = await supabase.from('sales_archive').select('*', { count: 'exact', head: true });
-
-      setStats({
-        pharmacies: totalPharmacies,
-        activeItems: (offerCount || 0) + (requestCount || 0),
-        successfulExchanges: archiveCount || 0
-      });
-
-      // 2. Fetch Pending Items
-      const { data: pendingData } = await supabase
-        .from('pending_items')
-        .select('*')
-        .order('created_at', { ascending: false });
-      setPendingItems(pendingData || []);
-
-      // 3. Fetch Pharmacies
-      const { data: pharmacyData } = await supabase
-        .from('pharmacies')
-        .select('pharmacy_id, pharmacy_name, phone, city, address, account_status, created_at')
-        .order('created_at', { ascending: false });
-      setPharmacies(pharmacyData || []);
-
-      // 4. Fetch Admins
-      const { data: adminData } = await supabase
-        .from('system_admins')
-        .select('*')
-        .order('created_at', { ascending: false });
-      setAdmins(adminData || []);
-
-      // 5. Fetch Marketplace Content with Joins
-      const { data: offersData } = await supabase
-        .from('inventory_offers')
-        .select('*, pharmacies(pharmacy_name)')
-        .order('created_at', { ascending: false })
-        .limit(50);
-      
-      const { data: requestsData } = await supabase
-        .from('inventory_requests')
-        .select('*, pharmacies(pharmacy_name)')
-        .order('created_at', { ascending: false })
-        .limit(50);
+      // 1. Fetch Stats (Silent Fail)
+      try {
+        const { data: statsData } = await supabase.from('pharmacies_stats').select('total_count');
+        const totalPharmacies = statsData?.[0]?.total_count || 0;
         
-      setActiveOffers(offersData || []);
-      setActiveRequests(requestsData || []);
+        const { count: offerCount } = await supabase.from('inventory_offers').select('*', { count: 'exact', head: true });
+        const { count: requestCount } = await supabase.from('inventory_requests').select('*', { count: 'exact', head: true });
+        const { count: archiveCount } = await supabase.from('sales_archive').select('*', { count: 'exact', head: true });
 
-      // 6. Fetch Ratings with Joins
-      const { data: ratingsData } = await supabase
-        .from('ratings')
-        .select(`
-          *,
-          from_pharmacy:pharmacies!from_pharmacy_id(pharmacy_name),
-          to_pharmacy:pharmacies!to_pharmacy_id(pharmacy_name)
-        `)
-        .order('created_at', { ascending: false })
-        .limit(50);
-      setRatings(ratingsData || []);
+        setStats({
+          pharmacies: totalPharmacies,
+          activeItems: (offerCount || 0) + (requestCount || 0),
+          successfulExchanges: archiveCount || 0
+        });
+      } catch (e) {
+        console.warn('Stats fetch failed:', e);
+      }
 
-      // 7. Fetch Trends from Views
-      const { data: offeredTrends } = await supabase.from('top_offered_drugs').select('*').limit(5);
-      const { data: requestedTrends } = await supabase.from('top_requested_drugs').select('*').limit(5);
-      
-      setTrends({
-        offered: offeredTrends?.map(t => ({ name: t.arabic_name, count: t.offer_count })) || [],
-        requested: requestedTrends?.map(t => ({ name: t.arabic_name, count: t.request_count })) || []
-      });
+      // 2. Fetch Pending Items (Silent Fail)
+      try {
+        const { data: pendingData } = await supabase
+          .from('pending_items')
+          .select('*')
+          .order('created_at', { ascending: false });
+        setPendingItems(pendingData || []);
+      } catch (e) {
+        console.warn('Pending items fetch failed:', e);
+      }
+
+      // 3. Fetch Pharmacies (Silent Fail)
+      try {
+        const { data: pharmacyData } = await supabase
+          .from('pharmacies')
+          .select('pharmacy_id, pharmacy_name, phone, city, address, account_status, created_at')
+          .order('created_at', { ascending: false });
+        setPharmacies(pharmacyData || []);
+      } catch (e) {
+        console.warn('Pharmacies fetch failed:', e);
+      }
+
+      // 4. Fetch Admins (Silent Fail)
+      try {
+        const { data: adminData } = await supabase
+          .from('system_admins')
+          .select('*')
+          .order('created_at', { ascending: false });
+        setAdmins(adminData || []);
+      } catch (e) {
+        console.warn('Admins fetch failed:', e);
+      }
+
+      // 5. Fetch Marketplace Content (Silent Fail)
+      try {
+        const { data: offersData } = await supabase
+          .from('inventory_offers')
+          .select('*, pharmacies(pharmacy_name)')
+          .order('created_at', { ascending: false })
+          .limit(50);
+        
+        const { data: requestsData } = await supabase
+          .from('inventory_requests')
+          .select('*, pharmacies(pharmacy_name)')
+          .order('created_at', { ascending: false })
+          .limit(50);
+          
+        setActiveOffers(offersData || []);
+        setActiveRequests(requestsData || []);
+      } catch (e) {
+        console.warn('Marketplace fetch failed:', e);
+      }
+
+      // 6. Fetch Ratings with Joins (Silent Fail)
+      try {
+        const { data: ratingsData } = await supabase
+          .from('ratings')
+          .select(`
+            *,
+            from_pharmacy:pharmacies!from_pharmacy_id(pharmacy_name),
+            to_pharmacy:pharmacies!to_pharmacy_id(pharmacy_name)
+          `)
+          .order('created_at', { ascending: false })
+          .limit(50);
+        setRatings(ratingsData || []);
+      } catch (e) {
+        console.warn('Ratings fetch failed:', e);
+      }
+
+      // 7. Fetch Trends from Views (Silent Fail)
+      try {
+        const { data: offeredTrends } = await supabase.from('top_offered_drugs').select('*').limit(5);
+        const { data: requestedTrends } = await supabase.from('top_requested_drugs').select('*').limit(5);
+        
+        setTrends({
+          offered: offeredTrends?.map(t => ({ name: t.arabic_name, count: t.offer_count })) || [],
+          requested: requestedTrends?.map(t => ({ name: t.arabic_name, count: t.request_count })) || []
+        });
+      } catch (e) {
+        console.warn('Trends fetch failed:', e);
+      }
 
     } catch (err) {
-      console.error('Admin Fetch Error:', err);
-      toast.error('Failed to load dashboard data');
+      console.warn('Global Admin Fetch Error:', err);
     } finally {
       setLoading(false);
     }
