@@ -74,6 +74,9 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
     console.log('Logout clicked');
     localStorage.removeItem('pharmacy_id');
     localStorage.removeItem('user_credentials');
+    localStorage.removeItem('is_admin');
+    localStorage.removeItem('admin_email');
+    localStorage.removeItem('pharmacy_profile');
     navigate('/login');
   };
 

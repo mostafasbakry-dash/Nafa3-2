@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
@@ -12,7 +12,11 @@ import { Reports } from './components/Reports';
 import { Terms } from './components/Terms';
 import { Login } from './components/Login';
 import { Registration } from './components/Registration';
+import { AdminDashboard } from './components/AdminDashboard';
 import { useTranslation } from 'react-i18next';
+import { getSupabase } from '@/src/lib/supabase';
+import { toast } from 'react-hot-toast';
+import { Loader2 } from 'lucide-react';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const pharmacyId = localStorage.getItem('pharmacy_id');
@@ -20,6 +24,62 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     return <Navigate to="/login" replace />;
   }
   return <Layout>{children}</Layout>;
+};
+
+const ProtectedRouteAdmin = ({ children }: { children: React.ReactNode }) => {
+  const [isAdmin, setIsAdmin] = React.useState<boolean | null>(null);
+  const navigate = useNavigate();
+
+  React.useEffect(() => {
+    const checkAdmin = async () => {
+      // First check localStorage for mock admin session
+      const mockIsAdmin = localStorage.getItem('is_admin') === 'true';
+      if (mockIsAdmin) {
+        setIsAdmin(true);
+        return;
+      }
+
+      const supabase = getSupabase();
+      if (!supabase) {
+        setIsAdmin(false);
+        return;
+      }
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setIsAdmin(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('system_admins')
+        .select('uid')
+        .eq('uid', user.id)
+        .single();
+
+      if (error || !data) {
+        setIsAdmin(false);
+      } else {
+        setIsAdmin(true);
+      }
+    };
+
+    checkAdmin();
+  }, []);
+
+  if (isAdmin === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <Loader2 className="animate-spin text-primary" size={48} />
+      </div>
+    );
+  }
+
+  if (isAdmin === false) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
 };
 
 export default function App() {
@@ -46,6 +106,8 @@ export default function App() {
         <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+        
+        <Route path="/admin-control-panel-988" element={<ProtectedRouteAdmin><AdminDashboard /></ProtectedRouteAdmin>} />
         
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

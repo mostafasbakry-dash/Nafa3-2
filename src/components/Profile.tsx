@@ -29,8 +29,16 @@ export const Profile = () => {
 
   useEffect(() => {
     const fetchPharmacyData = async () => {
-      const current_user_id = localStorage.getItem('pharmacy_id');
-      if (!current_user_id) {
+      const current_user_id_str = localStorage.getItem('pharmacy_id');
+      const isAdmin = localStorage.getItem('is_admin') === 'true';
+
+      if (!current_user_id_str || isAdmin) {
+        setIsInitialLoading(false);
+        return;
+      }
+
+      const current_user_id = parseInt(current_user_id_str);
+      if (isNaN(current_user_id)) {
         setIsInitialLoading(false);
         return;
       }

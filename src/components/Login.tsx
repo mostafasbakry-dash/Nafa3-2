@@ -28,8 +28,27 @@ export const Login = () => {
     const normalizedEmail = credentials.email.trim().toLowerCase();
 
     try {
-      // 1. Email Verification: Check if email exists in 'credentials' table (case-insensitive)
-      console.log('Attempting login for:', normalizedEmail);
+      // 1. Admin Verification: Check if email exists in 'system_admins' table
+      console.log('Checking if user is admin:', normalizedEmail);
+      const { data: adminData, error: adminError } = await supabase
+        .from('system_admins')
+        .select('*')
+        .ilike('email', normalizedEmail)
+        .single();
+
+      if (!adminError && adminData) {
+        console.log('Admin detected:', adminData);
+        localStorage.setItem('is_admin', 'true');
+        localStorage.setItem('admin_email', adminData.email);
+        localStorage.setItem('pharmacy_id', 'admin'); // Placeholder to pass ProtectedRoute if needed
+        
+        toast.success('Welcome Admin!');
+        navigate('/admin-control-panel-988');
+        return;
+      }
+
+      // 2. Pharmacy Verification: Check if email exists in 'credentials' table (case-insensitive)
+      console.log('Attempting pharmacy login for:', normalizedEmail);
       
       const { data: credentialData, error: credentialError } = await supabase
         .from('credentials')
@@ -85,6 +104,12 @@ export const Login = () => {
           address: ''
         }));
       } else {
+        // Update last_login
+        await supabase
+          .from('pharmacies')
+          .update({ last_login: new Date().toISOString() })
+          .eq('pharmacy_id', profileData.pharmacy_id);
+
         localStorage.setItem('pharmacy_id', profileData.pharmacy_id.toString());
         localStorage.setItem('pharmacy_profile', JSON.stringify({
           id: profileData.pharmacy_id.toString(),

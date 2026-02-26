@@ -60,8 +60,22 @@ export const Dashboard = () => {
     const supabase = getSupabase();
     if (!supabase) return;
 
-    const current_user_id = localStorage.getItem('pharmacy_id');
-    if (!current_user_id) {
+    const current_user_id_str = localStorage.getItem('pharmacy_id');
+    const isAdmin = localStorage.getItem('is_admin') === 'true';
+    
+    if (!current_user_id_str) {
+      setLoading(false);
+      return;
+    }
+
+    // If admin, we don't fetch personal pharmacy stats
+    if (isAdmin) {
+      setLoading(false);
+      return;
+    }
+
+    const current_user_id = parseInt(current_user_id_str);
+    if (isNaN(current_user_id)) {
       setLoading(false);
       return;
     }

@@ -10,7 +10,20 @@ export const Header = () => {
 
   const fetchPharmacyData = useCallback(async () => {
     const current_user_id = localStorage.getItem('pharmacy_id');
+    const isAdmin = localStorage.getItem('is_admin') === 'true';
+    const adminEmail = localStorage.getItem('admin_email');
+
     if (!current_user_id) {
+      setLoading(false);
+      return;
+    }
+
+    if (isAdmin) {
+      setPharmacy({
+        name: 'System Administrator',
+        address: adminEmail || 'Admin Panel',
+        avatar_url: undefined
+      });
       setLoading(false);
       return;
     }
