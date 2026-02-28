@@ -9,41 +9,102 @@ import { toast } from 'react-hot-toast';
 import { getSupabase } from '@/src/lib/supabase';
 
 export const Marketplace = () => {
-  const { t } = useTranslation();
-  const [offers, setOffers] = useState<Offer[]>([]);
-  const [filteredOffers, setFilteredOffers] = useState<Offer[]>([]);
+  const { t, i18n } = useTranslation();
+  const isRtl = i18n.language === 'ar';
+  const [viewType, setViewType] = useState<'offers' | 'requests'>('offers');
+  const [items, setItems] = useState<any[]>([]);
+  const [filteredItems, setFilteredItems] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
   const [minDiscount, setMinDiscount] = useState(0);
   const [showFilters, setShowFilters] = useState(false);
-  const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
-  const [ratingOffer, setRatingOffer] = useState<Offer | null>(null);
+  const [selectedItem, setSelectedItem] = useState<any | null>(null);
+  const [transferModalItem, setTransferModalItem] = useState<any | null>(null);
+  const [transferQuantity, setTransferQuantity] = useState(1);
+  const [ratingItem, setRatingItem] = useState<any | null>(null);
   const [error, setError] = useState<any>(null);
 
   const userProfile = JSON.parse(localStorage.getItem('pharmacy_profile') || '{}');
   const [loading, setLoading] = useState(true);
 
-  const fetchOffers = useCallback(async () => {
+  const confirmTransaction = async (item: any, quantity: number) => {
+    setLoading(true);
+    try {
+      const supabase = getSupabase();
+      if (!supabase) return;
+
+      const isFullSale = quantity >= item.quantity;
+
+      // 2. Insert into sales_archive
+      // The DB Trigger (SECURITY DEFINER) will handle the deduction/deletion 
+      // from inventory_offers/inventory_requests automatically.
+      const { error: archiveError } = await supabase
+        .from('sales_archive')
+        .insert([{
+          pharmacy_id: item.pharmacy_id, // Keep as is, Supabase handles bigint strings
+          item_id: item.id,             // Keep as is
+          arabic_name: item.arabic_name,
+          english_name: item.english_name,
+          barcode: item.barcode,
+          quantity: quantity,
+          price: item.price || 0,
+          discount: item.discount || 0,
+          created_at: new Date().toISOString(),
+          action_type: viewType === 'offers' ? 'Marketplace Sale' : 'Marketplace Request Filled'
+        }]);
+
+      if (archiveError) throw archiveError;
+
+      // 3. UI Update (Optimistic)
+      if (isFullSale) {
+        setItems(prev => prev.filter(i => i.id !== item.id));
+        setFilteredItems(prev => prev.filter(i => i.id !== item.id));
+      } else {
+        const updateList = (list: any[]) => list.map(i => 
+          i.id === item.id ? { ...i, quantity: i.quantity - quantity } : i
+        );
+        setItems(updateList);
+        setFilteredItems(updateList);
+      }
+
+      toast.success(isRtl ? 'تم تأكيد التعامل بنجاح' : 'Transaction confirmed successfully');
+      
+      setTransferModalItem(null);
+      setRatingItem(item);
+      // Add a small delay to allow the background DB trigger to complete
+      await new Promise(resolve => setTimeout(resolve, 500));
+      fetchData();
+      
+    } catch (err) {
+      console.error('Confirm Transaction Error:', err);
+      toast.error(t('error_generic'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      console.log('Fetching from inventory_offers...');
+      const table = viewType === 'offers' ? 'inventory_offers' : 'inventory_requests';
+      console.log(`Fetching from ${table}...`);
       const supabase = getSupabase();
       if (!supabase) return;
 
       const { data, error: fetchError } = await supabase
-        .from('inventory_offers')
+        .from(table)
         .select('*, pharmacies(pharmacy_id, pharmacy_name, phone, city, address, telegram)')
         .order('created_at', { ascending: false });
 
       if (fetchError) {
-        console.error('Marketplace Fetch Error:', fetchError.message, fetchError.details, fetchError.hint);
+        console.error(`Marketplace Fetch Error (${table}):`, fetchError.message, fetchError.details, fetchError.hint);
       }
       
-      const allOffers = data || [];
+      const allItems = data || [];
 
-      // Fetch ratings and success scores for all unique pharmacies in the offers
-      const pharmacyIds = [...new Set(allOffers.map(o => o.pharmacy_id))];
+      // Fetch ratings and success scores for all unique pharmacies in the items
+      const pharmacyIds = [...new Set(allItems.map(o => o.pharmacy_id))];
       
       if (pharmacyIds.length > 0) {
         // Fetch Ratings
@@ -59,23 +120,23 @@ export const Marketplace = () => {
           .in('pharmacy_id', pharmacyIds);
 
         // Map stats to pharmacies
-        allOffers.forEach(offer => {
-          if (offer.pharmacies) {
-            const pRatings = ratingsData?.filter(r => Number(r.to_pharmacy_id) === Number(offer.pharmacy_id)) || [];
-            const pArchive = archiveData?.filter(a => Number(a.pharmacy_id) === Number(offer.pharmacy_id)) || [];
+        allItems.forEach(item => {
+          if (item.pharmacies) {
+            const pRatings = ratingsData?.filter(r => Number(r.to_pharmacy_id) === Number(item.pharmacy_id)) || [];
+            const pArchive = archiveData?.filter(a => Number(a.pharmacy_id) === Number(item.pharmacy_id)) || [];
             
-            offer.pharmacies.rating = pRatings.length > 0 
+            item.pharmacies.rating = pRatings.length > 0 
               ? pRatings.reduce((sum, r) => sum + r.stars, 0) / pRatings.length 
               : 0;
-            offer.pharmacies.review_count = pRatings.length;
-            offer.pharmacies.success_score = pArchive.length;
-            offer.pharmacies.is_verified = offer.pharmacies.rating >= 4 && offer.pharmacies.success_score >= 5;
+            item.pharmacies.review_count = pRatings.length;
+            item.pharmacies.success_score = pArchive.length;
+            item.pharmacies.is_verified = item.pharmacies.rating >= 4 && item.pharmacies.success_score >= 5;
           }
         });
       }
 
       // Sort by proximity to user's city
-      const sorted = [...allOffers].sort((a, b) => {
+      const sorted = [...allItems].sort((a, b) => {
         const cityA = a.pharmacies?.city || '';
         const cityB = b.pharmacies?.city || '';
         const distA = getDistance(userProfile.city, cityA);
@@ -83,8 +144,8 @@ export const Marketplace = () => {
         return distA - distB;
       });
 
-      setOffers(sorted);
-      setFilteredOffers(sorted);
+      setItems(sorted);
+      setFilteredItems(sorted);
     } catch (err) {
       console.error('Fetch Marketplace Error:', err);
       setError(err);
@@ -92,14 +153,14 @@ export const Marketplace = () => {
     } finally {
       setLoading(false);
     }
-  }, [userProfile.city, t]);
+  }, [userProfile.city, t, viewType]);
 
   useEffect(() => {
-    fetchOffers();
-  }, [fetchOffers]);
+    fetchData();
+  }, [fetchData]);
 
   useEffect(() => {
-    let result = offers;
+    let result = items;
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -114,17 +175,39 @@ export const Marketplace = () => {
       result = result.filter(o => o.pharmacies?.city === selectedCity);
     }
 
-    if (minDiscount > 0) {
+    if (minDiscount > 0 && viewType === 'offers') {
       result = result.filter(o => o.discount >= minDiscount);
     }
 
-    setFilteredOffers(result);
-  }, [searchQuery, selectedCity, minDiscount, offers]);
+    setFilteredItems(result);
+  }, [searchQuery, selectedCity, minDiscount, items, viewType]);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h1 className="text-3xl font-bold text-slate-900">{t('marketplace')}</h1>
+        <div className="flex flex-col gap-1">
+          <h1 className="text-3xl font-bold text-slate-900">{t('marketplace')}</h1>
+          <div className="flex bg-slate-100 p-1 rounded-xl w-fit mt-2">
+            <button
+              onClick={() => setViewType('offers')}
+              className={cn(
+                "px-4 py-1.5 rounded-lg text-sm font-bold transition-all",
+                viewType === 'offers' ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              {isRtl ? 'المعروض' : 'Offers'}
+            </button>
+            <button
+              onClick={() => setViewType('requests')}
+              className={cn(
+                "px-4 py-1.5 rounded-lg text-sm font-bold transition-all",
+                viewType === 'requests' ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              {isRtl ? 'المطلوب' : 'Requests'}
+            </button>
+          </div>
+        </div>
         <div className="flex items-center gap-2">
           <div className="relative flex-1 md:w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -209,14 +292,17 @@ export const Marketplace = () => {
           <div className="col-span-full py-20 flex items-center justify-center">
             <Loader2 className="animate-spin text-primary" size={48} />
           </div>
-        ) : filteredOffers.length > 0 ? (
-          filteredOffers.map(offer => (
+        ) : filteredItems.length > 0 ? (
+          filteredItems.map(item => (
             <OfferCard
-              key={offer.id}
-              offer={offer}
+              key={item.id}
+              offer={item}
               actionLabel="Contact Pharmacy"
-              onAction={(o) => setSelectedOffer(o)}
-              onConfirm={(o) => setRatingOffer(o)}
+              onAction={(o) => setSelectedItem(o)}
+              onConfirm={(o) => {
+                setTransferModalItem(o);
+                setTransferQuantity(o.quantity);
+              }}
             />
           ))
         ) : (
@@ -224,19 +310,19 @@ export const Marketplace = () => {
             <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400">
               <Search size={40} />
             </div>
-            <h3 className="text-xl font-bold text-slate-900">{error ? 'Failed to load offers' : 'No offers found'}</h3>
+            <h3 className="text-xl font-bold text-slate-900">{error ? `Failed to load ${viewType}` : `No ${viewType} found`}</h3>
             <p className="text-slate-500">{error ? 'Please try again later' : 'Try adjusting your search or filters'}</p>
           </div>
         )}
       </div>
 
-      {selectedOffer && (
+      {selectedItem && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
           <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in duration-200">
             <div className="bg-primary p-6 text-white flex justify-between items-center">
               <h2 className="text-xl font-bold">Pharmacy Details</h2>
               <button 
-                onClick={() => setSelectedOffer(null)} 
+                onClick={() => setSelectedItem(null)} 
                 className="hover:bg-white/20 p-1 rounded-lg"
               >
                 <X size={24} />
@@ -250,11 +336,11 @@ export const Marketplace = () => {
                 </div>
                 <div>
                   <h3 className="text-xl font-bold text-slate-900">
-                    {selectedOffer.pharmacies?.pharmacy_name || selectedOffer.pharmacy_name || 'Unknown Pharmacy'}
+                    {selectedItem.pharmacies?.pharmacy_name || selectedItem.pharmacy_name || 'Unknown Pharmacy'}
                   </h3>
                   <p className="text-slate-500 flex items-center gap-1">
                     <MapPin size={14} />
-                    {selectedOffer.pharmacies?.city || selectedOffer.city || 'Unknown Location'}
+                    {selectedItem.pharmacies?.city || selectedItem.city || 'Unknown Location'}
                   </p>
                 </div>
               </div>
@@ -264,11 +350,11 @@ export const Marketplace = () => {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 text-slate-600">
                       <Phone size={18} className="text-primary" />
-                      <span className="font-medium">{selectedOffer.pharmacies?.phone || 'Not provided'}</span>
+                      <span className="font-medium">{selectedItem.pharmacies?.phone || 'Not provided'}</span>
                     </div>
-                    {selectedOffer.pharmacies?.phone && (
+                    {selectedItem.pharmacies?.phone && (
                       <a 
-                        href={`tel:${selectedOffer.pharmacies.phone}`}
+                        href={`tel:${selectedItem.pharmacies.phone}`}
                         className="p-2 bg-white border border-slate-200 rounded-lg text-primary hover:bg-primary hover:text-white transition-all"
                       >
                         <Phone size={16} />
@@ -280,12 +366,12 @@ export const Marketplace = () => {
                     <div className="flex items-center gap-3 text-slate-600">
                       <MessageSquare size={18} className="text-sky-500" />
                       <span className="font-medium">
-                        {selectedOffer.pharmacies?.telegram ? `@${selectedOffer.pharmacies.telegram}` : 'Not provided'}
+                        {selectedItem.pharmacies?.telegram ? `@${selectedItem.pharmacies.telegram}` : 'Not provided'}
                       </span>
                     </div>
-                    {selectedOffer.pharmacies?.telegram && (
+                    {selectedItem.pharmacies?.telegram && (
                       <a 
-                        href={`https://t.me/${selectedOffer.pharmacies.telegram}`}
+                        href={`https://t.me/${selectedItem.pharmacies.telegram}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="p-2 bg-white border border-slate-200 rounded-lg text-sky-500 hover:bg-sky-500 hover:text-white transition-all"
@@ -299,13 +385,13 @@ export const Marketplace = () => {
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-400 uppercase px-1">Full Address</label>
                   <p className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-slate-700 text-sm">
-                    {selectedOffer.pharmacies?.address || selectedOffer.pharmacy_address}
+                    {selectedItem.pharmacies?.address || selectedItem.pharmacy_address}
                   </p>
                 </div>
               </div>
 
               <button
-                onClick={() => setSelectedOffer(null)}
+                onClick={() => setSelectedItem(null)}
                 className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold transition-all"
               >
                 Close
@@ -315,15 +401,73 @@ export const Marketplace = () => {
         </div>
       )}
 
-      {ratingOffer && (
+      {ratingItem && (
         <RatingModal
-          isOpen={!!ratingOffer}
-          onClose={() => setRatingOffer(null)}
-          ratedPharmacyId={ratingOffer.pharmacy_id}
-          ratedPharmacyName={ratingOffer.pharmacies?.pharmacy_name || ratingOffer.pharmacy_name || ''}
-          relatedItemId={ratingOffer.id}
-          onSuccess={fetchOffers}
+          isOpen={!!ratingItem}
+          onClose={() => setRatingItem(null)}
+          ratedPharmacyId={ratingItem.pharmacy_id}
+          ratedPharmacyName={ratingItem.pharmacies?.pharmacy_name || ratingItem.pharmacy_name || ''}
+          relatedItemId={ratingItem.id}
+          onSuccess={fetchData}
         />
+      )}
+
+      {/* Transfer Modal */}
+      {transferModalItem && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in duration-200">
+            <div className="bg-primary p-6 text-white flex justify-between items-center">
+              <h2 className="text-xl font-bold">{isRtl ? 'تأكيد التعامل' : 'Confirm Transaction'}</h2>
+              <button 
+                onClick={() => setTransferModalItem(null)} 
+                className="hover:bg-white/20 p-1 rounded-lg"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              <div className="space-y-2">
+                <h3 className="font-bold text-slate-900">
+                  {isRtl ? transferModalItem.arabic_name : transferModalItem.english_name}
+                </h3>
+                <p className="text-sm text-slate-500">
+                  {isRtl ? 'الكمية المتاحة:' : 'Available Quantity:'} {transferModalItem.quantity}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase">
+                  {isRtl ? 'الكمية المراد تحويلها' : 'Quantity to Transfer'}
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max={transferModalItem.quantity}
+                  value={transferQuantity}
+                  onChange={(e) => setTransferQuantity(Math.min(transferModalItem.quantity, Math.max(1, parseInt(e.target.value) || 0)))}
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary outline-none"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setTransferModalItem(null)}
+                  className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition-all"
+                >
+                  {t('cancel')}
+                </button>
+                <button
+                  onClick={() => confirmTransaction(transferModalItem, transferQuantity)}
+                  disabled={loading || transferQuantity <= 0 || transferQuantity > transferModalItem.quantity}
+                  className="flex-1 py-3 bg-primary hover:bg-primary-dark text-white rounded-xl font-bold transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
+                >
+                  {loading ? <Loader2 className="animate-spin mx-auto" size={20} /> : (isRtl ? 'تأكيد' : 'Confirm')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

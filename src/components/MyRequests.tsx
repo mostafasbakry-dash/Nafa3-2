@@ -32,7 +32,8 @@ export const MyRequests = () => {
   const [selectedDrug, setSelectedDrug] = useState<Drug | null>(null);
   const [quantity, setQuantity] = useState(1);
 
-  const pharmacy_id = localStorage.getItem('pharmacy_id') || '';
+  const pharmacy_id_str = localStorage.getItem('pharmacy_id') || '';
+  const pharmacy_id = pharmacy_id_str === 'admin' ? '' : pharmacy_id_str;
 
   const fetchRequests = useCallback(async () => {
     if (!pharmacy_id) return;
@@ -123,6 +124,7 @@ export const MyRequests = () => {
         .from('sales_archive')
         .insert([{
           pharmacy_id: request.pharmacy_id,
+          item_id: request.id,
           arabic_name: request.arabic_name,
           english_name: request.english_name,
           barcode: request.barcode,
@@ -150,29 +152,25 @@ export const MyRequests = () => {
     if (!selectedRequest) return;
     setLoading(true);
     try {
+      // Optimistic Update
+      const removedId = selectedRequest.id;
+      setRequests(prev => prev.filter(r => r.id !== removedId));
+
       const success = await archiveItem(selectedRequest, selectedRequest.quantity, actionType);
       if (success) {
-        const supabase = getSupabase();
-        if (supabase) {
-          const { error: deleteError } = await supabase
-            .from('inventory_requests')
-            .delete()
-            .eq('id', selectedRequest.id);
-          
-          if (deleteError) {
-            console.error('Delete Error:', deleteError);
-            toast.error('Failed to remove item from active list');
-            return;
-          }
-          
-          toast.success('تم تحديث البيانات ونقل السجل للأرشيف بنجاح');
-          setShowCancelModal(false);
-          setSelectedRequest(null);
-          fetchRequests();
-        }
+        toast.success('تم تحديث البيانات ونقل السجل للأرشيف بنجاح');
+        setShowCancelModal(false);
+        setSelectedRequest(null);
+        // Add a small delay to allow the background DB trigger to complete
+        await new Promise(resolve => setTimeout(resolve, 500));
+        fetchRequests();
+      } else {
+        // Rollback if failed
+        fetchRequests();
       }
     } catch (err) {
       toast.error(t('error_generic'));
+      fetchRequests();
     } finally {
       setLoading(false);
     }
@@ -216,23 +214,12 @@ export const MyRequests = () => {
     try {
       const success = await archiveItem(selectedRequest, quantityValue, actionType);
       if (success) {
-        const supabase = getSupabase();
-        if (supabase) {
-          const newQty = Math.max(0, selectedRequest.quantity - quantityValue);
-          
-          if (newQty === 0) {
-            const { error: deleteError } = await supabase.from('inventory_requests').delete().eq('id', selectedRequest.id);
-            if (deleteError) throw deleteError;
-          } else {
-            const { error: updateError } = await supabase.from('inventory_requests').update({ quantity: newQty }).eq('id', selectedRequest.id);
-            if (updateError) throw updateError;
-          }
-          
-          toast.success('تم تحديث البيانات ونقل السجل للأرشيف بنجاح');
-          setShowDeductActionModal(false);
-          setSelectedRequest(null);
-          fetchRequests();
-        }
+        toast.success('تم تحديث البيانات ونقل السجل للأرشيف بنجاح');
+        setShowDeductActionModal(false);
+        setSelectedRequest(null);
+        // Add a small delay to allow the background DB trigger to complete
+        await new Promise(resolve => setTimeout(resolve, 500));
+        fetchRequests();
       }
     } catch (err) {
       toast.error(t('error_generic'));

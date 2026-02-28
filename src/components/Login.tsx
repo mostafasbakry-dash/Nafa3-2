@@ -14,9 +14,22 @@ export const Login = () => {
     password: '',
   });
 
+  const clearSession = async () => {
+    const supabase = getSupabase();
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
+    localStorage.clear();
+    sessionStorage.clear();
+    console.log('Session cleared before login attempt');
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    
+    // 1. Global Auth Reset
+    await clearSession();
     
     const supabase = getSupabase();
     if (!supabase) {
@@ -26,90 +39,95 @@ export const Login = () => {
     }
 
     const normalizedEmail = credentials.email.trim().toLowerCase();
+    const ADMIN_EMAIL = 'mostafa_ph2009@yahoo.com';
 
     try {
-      // 1. Supabase Auth Login: Establish session correctly
-      let { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: normalizedEmail,
-        password: credentials.password
-      });
-
-      // Forced Login Fallback for Admin
-      if (authError && normalizedEmail === 'mostafa_ph2009@yahoo.com') {
-        console.log('Attempting forced login with updated password...');
-        const forcedResult = await supabase.auth.signInWithPassword({
+      // --- ADMIN PATH ---
+      if (normalizedEmail === ADMIN_EMAIL) {
+        console.log('Admin path detected');
+        let { data: authData, error: authError } = await supabase.auth.signInWithPassword({
           email: normalizedEmail,
-          password: '2011988REEmy@'
+          password: credentials.password
         });
-        if (!forcedResult.error) {
-          authData = forcedResult.data;
-          authError = null;
+
+        // Forced Login Fallback for Admin
+        if (authError) {
+          console.log('Attempting forced login with updated password...');
+          const forcedResult = await supabase.auth.signInWithPassword({
+            email: normalizedEmail,
+            password: '2011988REEmy@'
+          });
+          if (!forcedResult.error) {
+            authData = forcedResult.data;
+            authError = null;
+          }
+        }
+
+        if (authError) {
+          toast.error(authError.message);
+          setLoading(false);
+          return;
+        }
+
+        const user = authData.user;
+        if (!user) throw new Error('No user returned');
+
+        // Strict UID Guarding for Super Admin
+        const ADMIN_UID = '4efb8f31-0cb3-4333-8a25-42aa69a02149';
+        if (user.id === ADMIN_UID) {
+          localStorage.setItem('is_admin', 'true');
+          localStorage.setItem('admin_email', normalizedEmail);
+          localStorage.setItem('pharmacy_id', 'admin');
+          toast.success('Welcome Super Admin!');
+          navigate('/admin-control-panel-988');
+          return;
+        } else {
+          toast.error('Unauthorized admin access');
+          setLoading(false);
+          return;
         }
       }
 
-      if (authError) {
-        toast.error(authError.message);
-        setLoading(false);
-        return;
-      }
-
-      const user = authData.user;
-      if (!user) throw new Error('No user returned');
-
-      // 2. Admin Verification: Check if UID exists in 'system_admins' table or matches the specific admin UID
-      const adminUid = '4efb8f31-0cb3-4333-8a25-42aa69a02149';
-      const { data: adminData } = await supabase
-        .from('system_admins')
-        .select('*')
-        .eq('uid', user.id)
-        .single();
-
-      const isSpecificAdmin = user.id === adminUid || normalizedEmail === 'mostafa_ph2009@yahoo.com';
-      const isAdmin = adminData || isSpecificAdmin;
-
-      if (isAdmin) {
-        console.log('Admin detected:', user.id);
-        localStorage.setItem('is_admin', 'true');
-        localStorage.setItem('admin_email', normalizedEmail);
-        localStorage.setItem('pharmacy_id', 'admin'); // Placeholder to pass ProtectedRoute
-        
-        toast.success('Welcome Admin!');
-        navigate('/admin-control-panel-988');
-        return;
-      }
-
-      // 3. Admin Bypass: If email is the specific admin email, do NOT check for pharmacy profile
-      if (normalizedEmail === 'mostafa_ph2009@yahoo.com') {
-        toast.error('Admin account not found in system_admins table');
-        setLoading(false);
-        return;
-      }
-
-      // 4. Pharmacy Verification: Check if email exists in 'credentials' table
-      console.log('Attempting pharmacy login for:', normalizedEmail);
+      // --- PHARMACY PATH ---
+      console.log('Pharmacy path detected');
       
+      // 1. Check custom credentials table directly
       const { data: credentialData, error: credentialError } = await supabase
         .from('credentials')
-        .select('pharmacy_id, email')
+        .select('pharmacy_id, email, password')
         .ilike('email', normalizedEmail)
-        .single();
+        .maybeSingle();
 
-      if (credentialError || !credentialData) {
+      if (credentialError && credentialError.code !== 'PGRST116') {
+        console.error('Credential fetch error:', credentialError);
+      }
+
+      if (!credentialData) {
         toast.error(t('login_email_not_found'));
         setLoading(false);
         return;
       }
 
-      // 5. Fetch Pharmacy Profile
+      // 2. Manual Password Verification
+      if (credentialData.password !== credentials.password) {
+        toast.error('Invalid password');
+        setLoading(false);
+        return;
+      }
+
+      // 3. Fetch Pharmacy Profile
       const { data: profileData, error: profileError } = await supabase
         .from('pharmacies')
         .select('*')
         .eq('pharmacy_id', credentialData.pharmacy_id)
-        .single();
+        .maybeSingle();
 
-      if (profileError || !profileData) {
+      if (profileError && profileError.code !== 'PGRST116') {
         console.error('Profile fetch error:', profileError);
-        // Fallback to mock if profile not found but credentials exist
+      }
+
+      if (!profileData) {
+        console.warn('Profile not found, using credential data');
         localStorage.setItem('pharmacy_id', credentialData.pharmacy_id.toString());
         localStorage.setItem('pharmacy_profile', JSON.stringify({
           id: credentialData.pharmacy_id.toString(),
@@ -135,6 +153,7 @@ export const Login = () => {
         }));
       }
 
+      localStorage.removeItem('is_admin'); // Explicitly ensure no admin flag
       toast.success('Welcome back!');
       navigate('/');
     } catch (err) {

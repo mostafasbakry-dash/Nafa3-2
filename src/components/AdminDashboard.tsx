@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Shield, 
   Users, 
@@ -81,7 +81,17 @@ interface Rating {
 export const AdminDashboard = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState('pending');
+  
+  // Sync tab with URL
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tab = params.get('tab');
+    if (tab && ['pending', 'pharmacies', 'admins', 'marketplace', 'ratings'].includes(tab)) {
+      setActiveTab(tab);
+    }
+  }, [location.search]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     pharmacies: 0,
@@ -129,7 +139,7 @@ export const AdminDashboard = () => {
           .from('system_admins')
           .select('uid')
           .eq('uid', user.id)
-          .single();
+          .maybeSingle();
         
         if (!adminCheck) {
           toast.error('Unauthorized access');
@@ -152,8 +162,10 @@ export const AdminDashboard = () => {
           activeItems: (offerCount || 0) + (requestCount || 0),
           successfulExchanges: archiveCount || 0
         });
-      } catch (e) {
-        console.warn('Stats fetch failed:', e);
+      } catch (e: any) {
+        if (e?.code !== 'PGRST116' && e?.status !== 406) {
+          console.warn('Stats fetch failed:', e);
+        }
       }
 
       // 2. Fetch Pending Items (Silent Fail)
@@ -163,8 +175,10 @@ export const AdminDashboard = () => {
           .select('*')
           .order('created_at', { ascending: false });
         setPendingItems(pendingData || []);
-      } catch (e) {
-        console.warn('Pending items fetch failed:', e);
+      } catch (e: any) {
+        if (e?.code !== 'PGRST116' && e?.status !== 406) {
+          console.warn('Pending items fetch failed:', e);
+        }
       }
 
       // 3. Fetch Pharmacies (Silent Fail)
@@ -174,8 +188,10 @@ export const AdminDashboard = () => {
           .select('pharmacy_id, pharmacy_name, phone, city, address, account_status, created_at')
           .order('created_at', { ascending: false });
         setPharmacies(pharmacyData || []);
-      } catch (e) {
-        console.warn('Pharmacies fetch failed:', e);
+      } catch (e: any) {
+        if (e?.code !== 'PGRST116' && e?.status !== 406) {
+          console.warn('Pharmacies fetch failed:', e);
+        }
       }
 
       // 4. Fetch Admins (Silent Fail)
@@ -185,8 +201,10 @@ export const AdminDashboard = () => {
           .select('*')
           .order('created_at', { ascending: false });
         setAdmins(adminData || []);
-      } catch (e) {
-        console.warn('Admins fetch failed:', e);
+      } catch (e: any) {
+        if (e?.code !== 'PGRST116' && e?.status !== 406) {
+          console.warn('Admins fetch failed:', e);
+        }
       }
 
       // 5. Fetch Marketplace Content (Silent Fail)
@@ -205,8 +223,10 @@ export const AdminDashboard = () => {
           
         setActiveOffers(offersData || []);
         setActiveRequests(requestsData || []);
-      } catch (e) {
-        console.warn('Marketplace fetch failed:', e);
+      } catch (e: any) {
+        if (e?.code !== 'PGRST116' && e?.status !== 406) {
+          console.warn('Marketplace fetch failed:', e);
+        }
       }
 
       // 6. Fetch Ratings with Joins (Silent Fail)
@@ -221,8 +241,10 @@ export const AdminDashboard = () => {
           .order('created_at', { ascending: false })
           .limit(50);
         setRatings(ratingsData || []);
-      } catch (e) {
-        console.warn('Ratings fetch failed:', e);
+      } catch (e: any) {
+        if (e?.code !== 'PGRST116' && e?.status !== 406) {
+          console.warn('Ratings fetch failed:', e);
+        }
       }
 
       // 7. Fetch Trends from Views (Silent Fail)
@@ -234,12 +256,16 @@ export const AdminDashboard = () => {
           offered: offeredTrends?.map(t => ({ name: t.arabic_name, count: t.offer_count })) || [],
           requested: requestedTrends?.map(t => ({ name: t.arabic_name, count: t.request_count })) || []
         });
-      } catch (e) {
-        console.warn('Trends fetch failed:', e);
+      } catch (e: any) {
+        if (e?.code !== 'PGRST116' && e?.status !== 406) {
+          console.warn('Trends fetch failed:', e);
+        }
       }
 
-    } catch (err) {
-      console.warn('Global Admin Fetch Error:', err);
+    } catch (err: any) {
+      if (err?.code !== 'PGRST116' && err?.status !== 406) {
+        console.warn('Global Admin Fetch Error:', err);
+      }
     } finally {
       setLoading(false);
     }

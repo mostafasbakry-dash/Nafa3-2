@@ -32,13 +32,6 @@ const ProtectedRouteAdmin = ({ children }: { children: React.ReactNode }) => {
 
   React.useEffect(() => {
     const checkAdmin = async () => {
-      // First check localStorage for mock admin session
-      const mockIsAdmin = localStorage.getItem('is_admin') === 'true';
-      if (mockIsAdmin) {
-        setIsAdmin(true);
-        return;
-      }
-
       const supabase = getSupabase();
       if (!supabase) {
         setIsAdmin(false);
@@ -51,16 +44,31 @@ const ProtectedRouteAdmin = ({ children }: { children: React.ReactNode }) => {
         return;
       }
 
+      // Strict UID Check for the primary admin
+      const ADMIN_UID = '4efb8f31-0cb3-4333-8a25-42aa69a02149';
+      if (user.id === ADMIN_UID) {
+        setIsAdmin(true);
+        localStorage.setItem('is_admin', 'true');
+        return;
+      }
+
+      // Secondary check against system_admins table
       const { data, error } = await supabase
         .from('system_admins')
         .select('uid')
         .eq('uid', user.id)
-        .single();
+        .maybeSingle();
 
-      if (error || !data) {
+      if (error && error.code !== 'PGRST116') {
+        console.error('Admin check error:', error);
+      }
+
+      if (!data) {
         setIsAdmin(false);
+        localStorage.removeItem('is_admin');
       } else {
         setIsAdmin(true);
+        localStorage.setItem('is_admin', 'true');
       }
     };
 

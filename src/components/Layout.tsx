@@ -12,10 +12,15 @@ import {
   LogOut, 
   Menu, 
   X,
-  Languages
+  Languages,
+  Shield,
+  Users,
+  Package,
+  Star
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { Header } from './Header';
+import { getSupabase } from '@/src/lib/supabase';
 
 interface SidebarItemProps {
   to: string;
@@ -45,9 +50,30 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(localStorage.getItem('is_admin') === 'true');
   const isRtl = i18n.language === 'ar';
 
-  const menuItems = [
+  useEffect(() => {
+    const verifyRole = async () => {
+      const supabase = getSupabase();
+      if (!supabase) return;
+
+      const { data: { user } } = await supabase.auth.getUser();
+      const ADMIN_UID = '4efb8f31-0cb3-4333-8a25-42aa69a02149';
+      
+      if (user && user.id === ADMIN_UID) {
+        setIsAdmin(true);
+        localStorage.setItem('is_admin', 'true');
+      } else {
+        setIsAdmin(false);
+        localStorage.removeItem('is_admin');
+      }
+    };
+
+    verifyRole();
+  }, [location.pathname]);
+
+  const pharmacyMenuItems = [
     { to: '/', icon: LayoutDashboard, label: t('dashboard') },
     { to: '/marketplace', icon: Store, label: t('marketplace') },
     { to: '/my-offers', icon: PackagePlus, label: t('my_offers') },
@@ -56,6 +82,16 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
     { to: '/profile', icon: User, label: t('profile') },
     { to: '/settings', icon: Settings, label: t('settings') },
   ];
+
+  const adminMenuItems = [
+    { to: '/admin-control-panel-988', icon: Shield, label: 'Admin Dashboard' },
+    { to: '/admin-control-panel-988?tab=pending', icon: Package, label: 'Pending Items' },
+    { to: '/admin-control-panel-988?tab=pharmacies', icon: Users, label: 'Pharmacies' },
+    { to: '/admin-control-panel-988?tab=marketplace', icon: Store, label: 'Marketplace' },
+    { to: '/admin-control-panel-988?tab=ratings', icon: Star, label: 'Ratings' },
+  ];
+
+  const menuItems = isAdmin ? adminMenuItems : pharmacyMenuItems;
 
   const toggleLanguage = () => {
     console.log('Toggle Language clicked');

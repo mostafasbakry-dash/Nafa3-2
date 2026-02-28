@@ -9,14 +9,17 @@ export const Header = () => {
   const [loading, setLoading] = useState(true);
 
   const fetchPharmacyData = useCallback(async () => {
-    const current_user_id = localStorage.getItem('pharmacy_id');
-    const isAdmin = localStorage.getItem('is_admin') === 'true';
-    const adminEmail = localStorage.getItem('admin_email');
-
-    if (!current_user_id) {
+    const supabase = getSupabase();
+    if (!supabase) {
       setLoading(false);
       return;
     }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    const ADMIN_UID = '4efb8f31-0cb3-4333-8a25-42aa69a02149';
+    const isAdmin = user && user.id === ADMIN_UID;
+    const adminEmail = localStorage.getItem('admin_email');
+    const current_pharmacy_id = localStorage.getItem('pharmacy_id');
 
     if (isAdmin) {
       setPharmacy({
@@ -28,18 +31,17 @@ export const Header = () => {
       return;
     }
 
-    try {
-      const supabase = getSupabase();
-      if (!supabase) {
-        setLoading(false);
-        return;
-      }
+    if (!current_pharmacy_id || current_pharmacy_id === 'admin') {
+      setLoading(false);
+      return;
+    }
 
+    try {
       const { data, error } = await supabase
         .from('pharmacies')
         .select('pharmacy_name, address, avatar_url, profile_pic')
-        .eq('pharmacy_id', current_user_id)
-        .single();
+        .eq('pharmacy_id', current_pharmacy_id)
+        .maybeSingle();
 
       if (error) throw error;
 

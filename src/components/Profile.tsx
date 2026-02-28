@@ -55,9 +55,13 @@ export const Profile = () => {
           .from('pharmacies')
           .select('pharmacy_name, phone, city, address, license_no, telegram, avatar_url, profile_pic')
           .eq('pharmacy_id', current_user_id)
-          .single();
+          .maybeSingle();
 
-        if (!pharmacyError && pharmacyData) {
+        if (pharmacyError && pharmacyError.code !== 'PGRST116') {
+          console.error('Pharmacy fetch error:', pharmacyError);
+        }
+
+        if (pharmacyData) {
           const updatedProfile = {
             name: pharmacyData.pharmacy_name || '',
             phone: pharmacyData.phone || '',
@@ -72,16 +76,24 @@ export const Profile = () => {
         }
 
         // Fetch Success Score
-        const { count: archiveCount } = await supabase
+        const { count: archiveCount, error: archiveError } = await supabase
           .from('sales_archive')
           .select('*', { count: 'exact', head: true })
           .eq('pharmacy_id', current_user_id);
 
+        if (archiveError && archiveError.code !== 'PGRST116') {
+          console.error('Archive fetch error:', archiveError);
+        }
+
         // Fetch Ratings
-        const { data: ratings } = await supabase
+        const { data: ratings, error: ratingsError } = await supabase
           .from('ratings')
           .select('stars')
           .eq('to_pharmacy_id', current_user_id);
+
+        if (ratingsError && ratingsError.code !== 'PGRST116') {
+          console.error('Ratings fetch error:', ratingsError);
+        }
 
         const avgRating = ratings && ratings.length > 0
           ? ratings.reduce((sum, r) => sum + r.stars, 0) / ratings.length
@@ -92,8 +104,10 @@ export const Profile = () => {
           reviewCount: ratings?.length || 0,
           successScore: archiveCount || 0
         });
-      } catch (err) {
-        console.error('Error fetching profile data:', err);
+      } catch (err: any) {
+        if (err?.code !== 'PGRST116' && err?.status !== 406) {
+          console.error('Error fetching profile data:', err);
+        }
       } finally {
         setIsInitialLoading(false);
       }

@@ -21,9 +21,9 @@ export const Terms = () => {
           .from('legal_content')
           .select('*')
           .eq('type', 'terms')
-          .single();
+          .maybeSingle();
 
-        if (error) throw error;
+        if (error && error.code !== 'PGRST116') throw error;
         if (data) {
           setContent({
             ar: data.content_ar,
@@ -31,7 +31,9 @@ export const Terms = () => {
           });
         }
       } catch (err: any) {
-        console.error('Error fetching legal content:', err);
+        if (err?.code !== 'PGRST116' && err?.status !== 406) {
+          console.error('Error fetching legal content:', err);
+        }
         setError(err.message);
         // Fallback content if fetch fails
         setContent({

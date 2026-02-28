@@ -47,10 +47,19 @@ export const DrugSearch = ({ onSelect, onAddMissing, className }: DrugSearchProp
 
       setLoading(true);
       try {
+        // Hybrid Search Logic
+        const isNumeric = /^\d+$/.test(query);
+        const isBarcode = isNumeric && query.length >= 8;
+        
+        let orFilter = `arabic_name.ilike.%${query}%,english_name.ilike.%${query}%`;
+        if (isBarcode) {
+          orFilter += `,barcode.eq.${query}`;
+        }
+
         const { data, error } = await supabase
           .from('master')
           .select('*')
-          .or(`arabic_name.ilike.%${query}%,english_name.ilike.%${query}%`)
+          .or(orFilter)
           .limit(10);
 
         console.log('Supabase search results:', data);
@@ -68,7 +77,16 @@ export const DrugSearch = ({ onSelect, onAddMissing, className }: DrugSearchProp
 
         setResults(mappedData);
         setHasSearched(true);
-        setIsOpen(true);
+        
+        // Selection Behavior: If exact barcode match and single result, select automatically
+        if (isBarcode && mappedData.length === 1 && mappedData[0].barcode.toString() === query) {
+          console.log(`Exact barcode match found: ${mappedData[0].name_en}`);
+          onSelect(mappedData[0]);
+          setQuery('');
+          setIsOpen(false);
+        } else {
+          setIsOpen(true);
+        }
       } catch (err) {
         console.error('Search error:', err);
       } finally {
@@ -78,7 +96,7 @@ export const DrugSearch = ({ onSelect, onAddMissing, className }: DrugSearchProp
 
     const debounce = setTimeout(searchDrugs, 300);
     return () => clearTimeout(debounce);
-  }, [query]);
+  }, [query, onSelect]);
 
   return (
     <div ref={wrapperRef} className={cn("relative", className)}>

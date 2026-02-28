@@ -38,7 +38,8 @@ export const MyOffers = () => {
     price: 0
   });
 
-  const pharmacy_id = localStorage.getItem('pharmacy_id') || '';
+  const pharmacy_id_str = localStorage.getItem('pharmacy_id') || '';
+  const pharmacy_id = pharmacy_id_str === 'admin' ? '' : pharmacy_id_str;
 
   const fetchOffers = useCallback(async () => {
     if (!pharmacy_id) return;
@@ -93,8 +94,9 @@ export const MyOffers = () => {
         expiry_date: formData.expiry_date,
         pharmacy_id: pharmacy_id,
         drug_id: selectedDrug.id,
-        english_name: selectedDrug.name_en,
-        arabic_name: selectedDrug.name_ar,
+        english_name: selectedDrug.name_en || '',
+        arabic_name: selectedDrug.name_ar || '',
+        manufacturer: selectedDrug.manufacturer || '',
         barcode: selectedDrug.barcode ? selectedDrug.barcode.toString().replace(/\D/g, '') : "0",
         quantity: formData.quantity,
         price: formData.price,
@@ -138,6 +140,7 @@ export const MyOffers = () => {
         .from('sales_archive')
         .insert([{
           pharmacy_id: offer.pharmacy_id,
+          item_id: offer.id,
           arabic_name: offer.arabic_name,
           english_name: offer.english_name,
           barcode: offer.barcode,
@@ -165,29 +168,25 @@ export const MyOffers = () => {
     if (!selectedOffer) return;
     setLoading(true);
     try {
+      // Optimistic Update
+      const removedId = selectedOffer.id;
+      setOffers(prev => prev.filter(o => o.id !== removedId));
+
       const success = await archiveItem(selectedOffer, selectedOffer.quantity, actionType);
       if (success) {
-        const supabase = getSupabase();
-        if (supabase) {
-          const { error: deleteError } = await supabase
-            .from('inventory_offers')
-            .delete()
-            .eq('id', selectedOffer.id);
-          
-          if (deleteError) {
-            console.error('Delete Error:', deleteError);
-            toast.error('Failed to remove item from active list');
-            return;
-          }
-          
-          toast.success('تم تحديث البيانات ونقل السجل للأرشيف بنجاح');
-          setShowCancelModal(false);
-          setSelectedOffer(null);
-          fetchOffers();
-        }
+        toast.success('تم تحديث البيانات ونقل السجل للأرشيف بنجاح');
+        setShowCancelModal(false);
+        setSelectedOffer(null);
+        // Add a small delay to allow the background DB trigger to complete
+        await new Promise(resolve => setTimeout(resolve, 500));
+        fetchOffers();
+      } else {
+        // Rollback if failed
+        fetchOffers();
       }
     } catch (err) {
       toast.error(t('error_generic'));
+      fetchOffers();
     } finally {
       setLoading(false);
     }
@@ -232,23 +231,12 @@ export const MyOffers = () => {
     try {
       const success = await archiveItem(selectedOffer, quantityValue, actionType);
       if (success) {
-        const supabase = getSupabase();
-        if (supabase) {
-          const newQty = Math.max(0, selectedOffer.quantity - quantityValue);
-          
-          if (newQty === 0) {
-            const { error: deleteError } = await supabase.from('inventory_offers').delete().eq('id', selectedOffer.id);
-            if (deleteError) throw deleteError;
-          } else {
-            const { error: updateError } = await supabase.from('inventory_offers').update({ quantity: newQty }).eq('id', selectedOffer.id);
-            if (updateError) throw updateError;
-          }
-          
-          toast.success('تم تحديث البيانات ونقل السجل للأرشيف بنجاح');
-          setShowDeductActionModal(false);
-          setSelectedOffer(null);
-          fetchOffers();
-        }
+        toast.success('تم تحديث البيانات ونقل السجل للأرشيف بنجاح');
+        setShowDeductActionModal(false);
+        setSelectedOffer(null);
+        // Add a small delay to allow the background DB trigger to complete
+        await new Promise(resolve => setTimeout(resolve, 500));
+        fetchOffers();
       }
     } catch (err) {
       toast.error(t('error_generic'));

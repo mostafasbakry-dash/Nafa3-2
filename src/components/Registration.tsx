@@ -10,6 +10,15 @@ export const Registration = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+
+  // Clear any existing sessions before starting registration
+  React.useEffect(() => {
+    localStorage.removeItem('is_admin');
+    localStorage.removeItem('admin_email');
+    localStorage.removeItem('pharmacy_id');
+    localStorage.removeItem('temp_pharmacy_id');
+    localStorage.removeItem('pharmacy_profile');
+  }, []);
   
   const [credentials, setCredentials] = useState({
     email: '',
@@ -102,6 +111,9 @@ export const Registration = () => {
       
       localStorage.setItem('pharmacy_id', pharmacy_id.toString());
       localStorage.setItem('pharmacy_profile', JSON.stringify(profile));
+      localStorage.removeItem('is_admin'); // Explicitly ensure not admin
+      localStorage.removeItem('admin_email');
+      
       toast.success('Profile completed successfully!');
       navigate('/');
     } catch (err: any) {

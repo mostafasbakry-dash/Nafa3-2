@@ -6,9 +6,9 @@ import { formatCurrency, cn } from '@/src/lib/utils';
 import { format } from 'date-fns';
 
 interface OfferCardProps {
-  offer: Offer;
-  onAction?: (offer: Offer) => void;
-  onConfirm?: (offer: Offer) => void;
+  offer: any;
+  onAction?: (offer: any) => void;
+  onConfirm?: (offer: any) => void;
   actionLabel?: string;
   isOwner?: boolean;
   [key: string]: any;
@@ -17,7 +17,7 @@ interface OfferCardProps {
 export const OfferCard = ({ offer, onAction, onConfirm, actionLabel, isOwner }: OfferCardProps) => {
   const { t, i18n } = useTranslation();
   const isRtl = i18n.language === 'ar';
-  const isNearExpiry = new Date(offer.expiry_date).getTime() - new Date().getTime() < 1000 * 60 * 60 * 24 * 90; // 90 days
+  const isNearExpiry = offer.expiry_date && (new Date(offer.expiry_date).getTime() - new Date().getTime() < 1000 * 60 * 60 * 24 * 90); // 90 days
 
   return (
     <div className={cn(
@@ -33,32 +33,41 @@ export const OfferCard = ({ offer, onAction, onConfirm, actionLabel, isOwner }: 
             <p className="text-xs font-mono text-slate-400 mt-1">{offer.barcode}</p>
           </div>
           <div className="flex flex-col items-end gap-2">
-            <div className="bg-primary/10 text-primary px-3 py-1 rounded-full text-sm font-bold">
-              {offer.discount}% OFF
-            </div>
+            {offer.discount !== undefined && offer.discount > 0 && (
+              <div className="bg-primary/10 text-primary px-3 py-1 rounded-full text-sm font-bold">
+                {offer.discount}% OFF
+              </div>
+            )}
             {isNearExpiry && (
               <div className="bg-orange-100 text-orange-700 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider">
                 {t('near_expiry')}
               </div>
             )}
+            <div className="bg-slate-100 text-slate-600 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider">
+              {isRtl ? `الكمية: ${offer.quantity}` : `Qty: ${offer.quantity}`}
+            </div>
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="flex items-center gap-2 text-slate-600">
-            <Calendar size={16} className="text-slate-400" />
-            <div className="flex flex-col">
-              <span className="text-[10px] uppercase text-slate-400 font-bold">{t('expiry_date')}</span>
-              <span className="text-sm font-medium">{format(new Date(offer.expiry_date), 'MMM yyyy')}</span>
+          {offer.expiry_date && (
+            <div className="flex items-center gap-2 text-slate-600">
+              <Calendar size={16} className="text-slate-400" />
+              <div className="flex flex-col">
+                <span className="text-[10px] uppercase text-slate-400 font-bold">{t('expiry_date')}</span>
+                <span className="text-sm font-medium">{format(new Date(offer.expiry_date), 'MMM yyyy')}</span>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2 text-slate-600">
-            <Tag size={16} className="text-slate-400" />
-            <div className="flex flex-col">
-              <span className="text-[10px] uppercase text-slate-400 font-bold">{t('price')}</span>
-              <span className="text-sm font-bold text-primary">{formatCurrency(offer.price)}</span>
+          )}
+          {offer.price !== undefined && (
+            <div className="flex items-center gap-2 text-slate-600">
+              <Tag size={16} className="text-slate-400" />
+              <div className="flex flex-col">
+                <span className="text-[10px] uppercase text-slate-400 font-bold">{t('price')}</span>
+                <span className="text-sm font-bold text-primary">{formatCurrency(offer.price)}</span>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {!isOwner && (
