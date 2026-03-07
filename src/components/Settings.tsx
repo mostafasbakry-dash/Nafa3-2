@@ -185,7 +185,7 @@ export const Settings = () => {
               </div>
             </button>
             <button 
-              onClick={() => console.log('About Nafa3 clicked')}
+              onClick={() => console.log('About Roeya clicked')}
               className="w-full p-6 flex items-center justify-between hover:bg-slate-50 transition-colors text-start"
             >
               <div className="flex items-center gap-4">
@@ -193,7 +193,7 @@ export const Settings = () => {
                   <Info size={24} />
                 </div>
                 <div>
-                  <p className="font-bold text-slate-900">About Nafa3</p>
+                  <p className="font-bold text-slate-900">About Roeya</p>
                   <p className="text-sm text-slate-500">Version 1.0.0</p>
                 </div>
               </div>

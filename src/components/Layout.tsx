@@ -121,8 +121,8 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex flex-col w-64 bg-white border-e border-slate-200 p-4 sticky top-0 h-screen">
         <div className="flex items-center gap-2 px-2 mb-8">
-          <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white font-bold text-xl">
-            N
+          <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center overflow-hidden border border-slate-100">
+            <img src="/logo.png" alt="Roeya Logo" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
           </div>
           <div>
             <h1 className="font-bold text-xl text-primary leading-tight">{t('app_name')}</h1>
@@ -162,8 +162,8 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
       <div className="flex-1 flex flex-col">
         <header className="md:hidden bg-white border-b border-slate-200 p-4 flex items-center justify-between sticky top-0 z-50">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white font-bold text-lg">
-              N
+            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center overflow-hidden border border-slate-100">
+              <img src="/logo.png" alt="Roeya Logo" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
             </div>
             <h1 className="font-bold text-lg text-primary">{t('app_name')}</h1>
           </div>

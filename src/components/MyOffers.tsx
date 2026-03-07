@@ -7,12 +7,12 @@ import { DrugSearch } from '@/src/components/DrugSearch';
 import { toast } from 'react-hot-toast';
 import { format } from 'date-fns';
 import { BulkUpload } from '@/src/components/BulkUpload';
-import { cn } from '@/src/lib/utils';
+import { cn, getExpiryStatus } from '@/src/lib/utils';
 import { getSupabase } from '@/src/lib/supabase';
 import { AddMissingItemModal } from './AddMissingItemModal';
 
 export const MyOffers = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const [offers, setOffers] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(false);
@@ -164,6 +164,8 @@ export const MyOffers = () => {
     }
   };
 
+  const isRtl = i18n.language === 'ar';
+
   const handleFullCancel = async (actionType: string) => {
     if (!selectedOffer) return;
     setLoading(true);
@@ -187,6 +189,32 @@ export const MyOffers = () => {
     } catch (err) {
       toast.error(t('error_generic'));
       fetchOffers();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDirectDelete = async () => {
+    if (!selectedOffer) return;
+    setLoading(true);
+    try {
+      const supabase = getSupabase();
+      if (!supabase) return;
+
+      const { error: deleteError } = await supabase
+        .from('inventory_offers')
+        .delete()
+        .eq('id', selectedOffer.id);
+
+      if (deleteError) throw deleteError;
+
+      toast.success('تم حذف العرض بنجاح');
+      setShowCancelModal(false);
+      setSelectedOffer(null);
+      fetchOffers();
+    } catch (err) {
+      console.error('Delete Error:', err);
+      toast.error(t('error_generic'));
     } finally {
       setLoading(false);
     }
@@ -299,7 +327,7 @@ export const MyOffers = () => {
         </button>
       </div>
 
-      <BulkUpload />
+      <BulkUpload onSuccess={fetchOffers} />
 
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
@@ -325,14 +353,20 @@ export const MyOffers = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={cn(
-                        "px-2 py-1 rounded text-xs font-bold",
-                        new Date(offer.expiry_date).getTime() - new Date().getTime() < 1000 * 60 * 60 * 24 * 90
-                          ? "bg-orange-100 text-orange-700"
-                          : "bg-slate-100 text-slate-700"
-                      )}>
-                        {format(new Date(offer.expiry_date), 'MMM yyyy')}
-                      </span>
+                      {(() => {
+                        const status = getExpiryStatus(offer.expiry_date);
+                        return (
+                          <span className={cn(
+                            "px-2 py-1 rounded text-xs font-bold",
+                            status.color === 'rose' && "bg-rose-100 text-rose-700",
+                            status.color === 'orange' && "bg-orange-100 text-orange-700",
+                            status.color === 'emerald' && "bg-emerald-100 text-emerald-700",
+                            status.color === 'slate' && "bg-slate-100 text-slate-700"
+                          )}>
+                            {format(new Date(offer.expiry_date), 'MMM yyyy')}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="px-6 py-4">
                       <span className="font-bold text-primary">{offer.discount}%</span>
@@ -581,18 +615,26 @@ export const MyOffers = () => {
             </div>
             <h2 className="text-2xl font-bold text-slate-900 mb-2">{t('archive_question')}</h2>
             <p className="text-slate-500 mb-8">سيتم نقل هذا العرض إلى الأرشيف</p>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-3">
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => handleFullCancel(t('archive_internal_sale'))}
+                  className="py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold transition-all shadow-lg shadow-emerald-500/20"
+                >
+                  {t('archive_internal_sale')}
+                </button>
+                <button
+                  onClick={() => handleFullCancel(t('archive_transfer'))}
+                  className="py-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl font-bold transition-all shadow-lg shadow-indigo-500/20"
+                >
+                  {t('archive_transfer')}
+                </button>
+              </div>
               <button
-                onClick={() => handleFullCancel(t('archive_internal_sale'))}
-                className="py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold transition-all shadow-lg shadow-emerald-500/20"
+                onClick={handleDirectDelete}
+                className="py-3 bg-rose-500 hover:bg-rose-600 text-white rounded-xl font-bold transition-all shadow-lg shadow-rose-500/20"
               >
-                {t('archive_internal_sale')}
-              </button>
-              <button
-                onClick={() => handleFullCancel(t('archive_transfer'))}
-                className="py-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl font-bold transition-all shadow-lg shadow-indigo-500/20"
-              >
-                {t('archive_transfer')}
+                {isRtl ? 'حذف نهائي (بدون أرشيف)' : 'Permanent Delete (No Archive)'}
               </button>
             </div>
             <button 

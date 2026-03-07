@@ -14,23 +14,33 @@ interface OfferCardProps {
   [key: string]: any;
 }
 
-export const OfferCard = ({ offer, onAction, onConfirm, actionLabel, isOwner }: OfferCardProps) => {
+export const OfferCard = ({ offer, onAction, onConfirm, actionLabel, isOwner, userCity }: OfferCardProps) => {
   const { t, i18n } = useTranslation();
   const isRtl = i18n.language === 'ar';
   const isNearExpiry = offer.expiry_date && (new Date(offer.expiry_date).getTime() - new Date().getTime() < 1000 * 60 * 60 * 24 * 90); // 90 days
+  const pharmacyCity = offer.pharmacies?.city || offer.pharmacy_address?.split(',')[0];
+  const isInUserCity = userCity && pharmacyCity && userCity.trim().toLowerCase() === pharmacyCity.trim().toLowerCase();
 
   return (
     <div className={cn(
       "bg-white rounded-2xl border border-slate-200 overflow-hidden hover:shadow-lg transition-all group flex flex-col h-full",
-      isNearExpiry && "border-orange-200 bg-orange-50/30"
+      isNearExpiry && "border-orange-200 bg-orange-50/30",
+      isInUserCity && "border-emerald-200 ring-1 ring-emerald-100"
     )}>
       <div className="p-5 flex-1 flex flex-col">
         <div className="flex justify-between items-start mb-4">
           <div className="flex-1">
-            <h3 className="font-bold text-lg text-slate-900 group-hover:text-primary transition-colors">
-              {isRtl ? offer.arabic_name : offer.english_name}
-            </h3>
-            <p className="text-xs font-mono text-slate-400 mt-1">{offer.barcode}</p>
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="font-bold text-lg text-slate-900 group-hover:text-primary transition-colors">
+                {isRtl ? offer.arabic_name : offer.english_name}
+              </h3>
+              {isInUserCity && (
+                <span className="bg-emerald-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold animate-pulse">
+                  {t('in_your_city')}
+                </span>
+              )}
+            </div>
+            <p className="text-xs font-mono text-slate-400">{offer.barcode}</p>
           </div>
           <div className="flex flex-col items-end gap-2">
             {offer.discount !== undefined && offer.discount > 0 && (

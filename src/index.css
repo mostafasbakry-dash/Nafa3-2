@@ -22,3 +22,23 @@
   direction: ltr;
 }
 
+@keyframes pulse-green {
+  0% {
+    box-shadow: 0 0 0 0 rgba(0, 255, 0, 0.7);
+    border-color: #00FF00;
+  }
+  70% {
+    box-shadow: 0 0 0 15px rgba(0, 255, 0, 0);
+    border-color: rgba(0, 255, 0, 0.5);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 255, 0, 0);
+    border-color: #00FF00;
+  }
+}
+
+.animate-pulse-green {
+  animation: pulse-green 2s infinite;
+  border-width: 2px;
+}
+

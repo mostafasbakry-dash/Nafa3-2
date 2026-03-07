@@ -5,7 +5,7 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 const resources = {
   en: {
     translation: {
-      "app_name": "Nafa3",
+      "app_name": "Roeya",
       "tagline": "Professional Dead-Stock Exchange",
       "login": "Login",
       "register": "Register",
@@ -80,12 +80,19 @@ const resources = {
       "cumulative_rating": "Cumulative Rating",
       "success_score": "Success Score",
       "verified_pharmacy": "Verified Pharmacy",
-      "rating_question": "How was your experience with {{name}}?"
+      "rating_question": "How was your experience with {{name}}?",
+      "items_found": "Items Found",
+      "requested_offers": "Requested Offers",
+      "available_requests": "Available Requests",
+      "no_matches": "No matches found yet.",
+      "matches": "Matches",
+      "in_your_city": "In Your City",
+      "match_found_msg": "Matches found for your offers or requests!"
     }
   },
   ar: {
     translation: {
-      "app_name": "نافع",
+      "app_name": "رؤية",
       "tagline": "منصة تبادل الأدوية الراكدة",
       "login": "تسجيل الدخول",
       "register": "تسجيل جديد",
@@ -160,7 +167,14 @@ const resources = {
       "cumulative_rating": "التقييم التراكمي",
       "success_score": "معدل النجاح",
       "verified_pharmacy": "صيدلية موثوقة",
-      "rating_question": "كيف كانت تجربتك مع {{name}}؟"
+      "rating_question": "كيف كانت تجربتك مع {{name}}؟",
+      "items_found": "أصناف عثر عليها",
+      "requested_offers": "عروض مطلوبة",
+      "available_requests": "طلبات متوفرة",
+      "no_matches": "لم يتم العثور على تطابقات بعد.",
+      "matches": "تطابقات",
+      "in_your_city": "في مدينتك",
+      "match_found_msg": "تم العثور على أصناف مطابقة لعروضك أو طلباتك!"
     }
   }
 };

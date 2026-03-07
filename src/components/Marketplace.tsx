@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 import { Search, Filter, SlidersHorizontal, MapPin, Percent, X, Loader2, Phone, MessageSquare, Building, ExternalLink } from 'lucide-react';
 import { Offer, Request as MarketRequest, EGYPT_CITIES } from '@/src/types';
 import { OfferCard } from '@/src/components/OfferCard';
@@ -11,10 +12,14 @@ import { getSupabase } from '@/src/lib/supabase';
 export const Marketplace = () => {
   const { t, i18n } = useTranslation();
   const isRtl = i18n.language === 'ar';
-  const [viewType, setViewType] = useState<'offers' | 'requests'>('offers');
+  const [searchParams] = useSearchParams();
+  const barcodeParam = searchParams.get('barcode');
+  const viewParam = searchParams.get('view');
+
+  const [viewType, setViewType] = useState<'offers' | 'requests'>((viewParam as any) || 'offers');
   const [items, setItems] = useState<any[]>([]);
   const [filteredItems, setFilteredItems] = useState<any[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(barcodeParam || '');
   const [selectedCity, setSelectedCity] = useState('');
   const [minDiscount, setMinDiscount] = useState(0);
   const [showFilters, setShowFilters] = useState(false);
@@ -82,6 +87,15 @@ export const Marketplace = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (barcodeParam) {
+      setSearchQuery(barcodeParam);
+    }
+    if (viewParam === 'offers' || viewParam === 'requests') {
+      setViewType(viewParam);
+    }
+  }, [barcodeParam, viewParam]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -297,6 +311,7 @@ export const Marketplace = () => {
             <OfferCard
               key={item.id}
               offer={item}
+              userCity={userProfile?.city}
               actionLabel="Contact Pharmacy"
               onAction={(o) => setSelectedItem(o)}
               onConfirm={(o) => {
